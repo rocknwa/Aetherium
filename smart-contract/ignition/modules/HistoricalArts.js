@@ -3,9 +3,9 @@
 
 const { buildModule } = require("@nomicfoundation/hardhat-ignition/modules");
 
-module.exports = buildModule("HistoricalArtsModule", (m) => {
+module.exports = buildModule("AetheriumModule", (m) => {
 
-  const historicalArts = m.contract("HistoricalArts");
+  const aetherium = m.contract("Aetherium");
 
-  return { historicalArts };
+  return {aetherium };
 });

@@ -6,12 +6,14 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "./NFT.sol";
 
-contract HistoricalArts is ERC721URIStorage, ERC721Holder {
+contract Aetherium is ERC721URIStorage, ERC721Holder {
     uint256 private _tokenIds;
     uint256 private _itemsSold;
+    uint256 private _marketItemIds;
 
-    uint256 public listingPrice = 0.0025 ether;  // Listing price for minting
+    uint256 public listingFeePercentage = 2;  // Listing fee percentage (e.g., 2%)
     address payable public owner;
 
     mapping(uint256 => MarketItem) private idMarketItem;
@@ -19,6 +21,7 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
     mapping(address => uint256) private creatorSoldItems;
 
     struct MarketItem {
+        uint256 marketItemId;
         uint256 tokenId;
         address payable seller;
         address payable owner;
@@ -36,6 +39,7 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
     }
 
     event idMarketItemCreated(
+        uint256 indexed marketItemId,
         uint256 indexed tokenId,
         address seller,
         address owner,
@@ -44,9 +48,9 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
         address nftContract
     );
 
-    // Only the owner of the contract can change specific values like listingPrice
+    // Only the owner of the contract can change specific values like listingFeePercentage
     modifier onlyOwner {
-        require(msg.sender == owner, "Only the marketplace owner can change the listing price");
+        require(msg.sender == owner, "Only the marketplace owner can change the listing fee percentage");
         _;
     }
 
@@ -56,7 +60,7 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
         _;
     }
 
-    constructor() ERC721("Historical ART Token", "HAT") {
+    constructor() ERC721("Aetherium", "AETH") {
         owner = payable(msg.sender); // Contract deployer becomes owner
     }
 
@@ -69,25 +73,23 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
     }
 
     /**
-     * @dev Update the listing price by the contract owner.
+     * @dev Update the listing fee percentage by the contract owner.
      */
-    function updateListingPrice(uint256 _listingPrice) public payable onlyOwner {
-        listingPrice = _listingPrice;
+    function updateListingFeePercentage(uint256 _listingFeePercentage) public onlyOwner {
+        listingFeePercentage = _listingFeePercentage;
     }
 
     /**
-     * @dev Get the current listing price.
+     * @dev Get the current listing fee percentage.
      */
-    function getListingPrice() public view returns (uint256) {
-        return listingPrice;
+    function getListingFeePercentage() public view returns (uint256) {
+        return listingFeePercentage;
     }
 
     /**
      * @dev Create a new token, mint it, and list it for sale in the marketplace.
      */
-    function createToken(string memory tokenURI, uint256 price) public payable onlyCreators returns (uint256) {
-        require(msg.value == listingPrice, "Listing price required");
-
+    function createToken(string memory tokenURI, uint256 price) public onlyCreators returns (uint256) {
         uint256 newTokenId = _tokenIds++;
         _mint(msg.sender, newTokenId);  // Mint the new NFT
         _setTokenURI(newTokenId, tokenURI);  // Set the token URI (metadata)
@@ -99,11 +101,19 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
     /**
      * @dev List an already deployed NFT for sale in the marketplace.
      */
-    function listExistingNFT(address nftContract, uint256 tokenId, uint256 price) public payable onlyCreators {
-        require(msg.value == listingPrice, "Listing price required");
-
+    function listExistingNFT(address nftContract, uint256 tokenId, uint256 price) public onlyCreators {
         IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);  // Transfer the NFT to the marketplace
         createMarketItem(nftContract, tokenId, price, msg.sender);  // List the token on the marketplace
+    }
+
+    function createCustomNFT(string memory _tokenURI, string memory _title, string memory _symbol, uint price) public onlyCreators {
+        // Deploy a new NFT contract
+        NFT nft = new NFT(_title, _symbol, _tokenURI);
+        nft.mintNFT(msg.sender);
+        uint256 tokenId = 0;
+        tokenId++;
+        IERC721(address(nft)).transferFrom(msg.sender, address(this), tokenId);  // Transfer the NFT to the marketplace
+        createMarketItem(address(nft), tokenId, price, msg.sender); 
     }
 
     /**
@@ -112,7 +122,10 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
     function createMarketItem(address nftContract, uint256 tokenId, uint256 price, address seller) private {
         require(price > 0, "Price must be at least 1 wei");
 
-        idMarketItem[tokenId] = MarketItem(
+        uint256 marketItemId = _marketItemIds++;
+        
+        idMarketItem[marketItemId] = MarketItem(
+            marketItemId,
             tokenId,
             payable(seller), // Seller is the creator of the item
             payable(address(this)), // Initially, the marketplace owns the token
@@ -121,61 +134,64 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
             nftContract
         );
 
-        emit idMarketItemCreated(tokenId, seller, address(this), price, false, nftContract);
+        emit idMarketItemCreated(marketItemId, tokenId, seller, address(this), price, false, nftContract);
     }
 
     /**
      * @dev Resell a token that the user has previously purchased.
      */
-    function reSellToken(address nftContract, uint256 tokenId, uint256 price) public payable onlyCreators {
-        require(idMarketItem[tokenId].owner == msg.sender, "Only the item owner can resell it");
-        require(msg.value == listingPrice, "Listing price required");
+    function reSellToken(address nftContract, uint256 marketItemId, uint256 price) public onlyCreators {
+        MarketItem storage item = idMarketItem[marketItemId];
+        require(item.owner == msg.sender, "Only the item owner can resell it");
 
-        idMarketItem[tokenId].sold = false;
-        idMarketItem[tokenId].price = price;
-        idMarketItem[tokenId].seller = payable(msg.sender);
-        idMarketItem[tokenId].owner = payable(address(this)); // Marketplace becomes the new owner
+        item.sold = false;
+        item.price = price;
+        item.seller = payable(msg.sender);
+        item.owner = payable(address(this)); // Marketplace becomes the new owner
 
         _itemsSold--;  // Reduce the number of sold items
-        IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);  // Transfer ownership back to marketplace
+        IERC721(nftContract).transferFrom(msg.sender, address(this), item.tokenId);  // Transfer ownership back to marketplace
     }
 
     /**
      * @dev Create a market sale and transfer the token to the buyer.
      */
-    function createMarketSale(uint256 tokenId) public payable {
-        uint256 price = idMarketItem[tokenId].price;
+    function createMarketSale(uint256 marketItemId) public payable {
+        MarketItem storage item = idMarketItem[marketItemId];
+        uint256 price = item.price;
         require(msg.value == price, "Submit asking price to complete transaction");
 
-        address payable seller = idMarketItem[tokenId].seller;
-        idMarketItem[tokenId].owner = payable(msg.sender);  // Buyer becomes the new owner
-        idMarketItem[tokenId].sold = true;
+        address payable seller = item.seller;
+        item.owner = payable(msg.sender);  // Buyer becomes the new owner
+        item.sold = true;
         _itemsSold++;  // Increment the number of sold items
 
-        IERC721(idMarketItem[tokenId].nftContract).transferFrom(address(this), msg.sender, tokenId);  // Transfer ownership to buyer
+        IERC721(item.nftContract).transferFrom(address(this), msg.sender, item.tokenId);  // Transfer ownership to buyer
 
-        payable(owner).transfer(listingPrice);  // Transfer listing fee to contract owner
-        seller.transfer(msg.value);  // Transfer price to seller
+        uint256 listingFee = (price * listingFeePercentage) / 100;
+        uint256 sellerAmount = price - listingFee;
+
+        payable(owner).transfer(listingFee);  // Transfer listing fee to contract owner
+        seller.transfer(sellerAmount);  // Transfer remaining amount to seller
 
         // Track the number of items sold by the creator
         creatorSoldItems[seller]++;
         // Update the total earnings of the creator
-        creators[seller].totalEarnings += msg.value;
+        creators[seller].totalEarnings += sellerAmount;
     }
 
     /**
      * @dev Fetch all unsold market items.
      */
     function fetchMarketItems() public view returns (MarketItem[] memory) {
-        uint256 itemCount = _tokenIds;
-        uint256 unsoldItemCount = _tokenIds - _itemsSold;
+        uint256 itemCount = _marketItemIds;
+        uint256 unsoldItemCount = _marketItemIds - _itemsSold;
         uint256 currentIndex = 0;
 
         MarketItem[] memory items = new MarketItem[](unsoldItemCount);
         for (uint256 i = 0; i < itemCount; i++) {
-            if (idMarketItem[i + 1].owner == address(this)) {  // Item is still owned by marketplace
-                uint256 currentId = i + 1;
-                MarketItem storage currentItem = idMarketItem[currentId];
+            if (idMarketItem[i].owner == address(this)) {  // Item is still owned by marketplace
+                MarketItem storage currentItem = idMarketItem[i];
                 items[currentIndex] = currentItem;
                 currentIndex += 1;
             }
@@ -187,21 +203,20 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
      * @dev Fetch all tokens owned by the caller.
      */
     function fetchMyArt() public view returns (MarketItem[] memory) {
-        uint256 totalItemCount = _tokenIds;
+        uint256 totalItemCount = _marketItemIds;
         uint256 itemCount = 0;
         uint256 currentIndex = 0;
 
         for (uint256 i = 0; i < totalItemCount; i++) {
-            if (idMarketItem[i + 1].owner == msg.sender) {  // Item is owned by the caller
+            if (idMarketItem[i].owner == msg.sender) {  // Item is owned by the caller
                 itemCount += 1;
             }
         }
 
         MarketItem[] memory items = new MarketItem[](itemCount);
         for (uint256 i = 0; i < totalItemCount; i++) {
-            if (idMarketItem[i + 1].owner == msg.sender) {
-                uint256 currentId = i + 1;
-                MarketItem storage currentItem = idMarketItem[currentId];
+            if (idMarketItem[i].owner == msg.sender) {
+                MarketItem storage currentItem = idMarketItem[i];
                 items[currentIndex] = currentItem;
                 currentIndex += 1;
             }
@@ -213,25 +228,25 @@ contract HistoricalArts is ERC721URIStorage, ERC721Holder {
      * @dev Fetch all items listed by the caller.
      */
     function fetchItemsListed() public view returns (MarketItem[] memory) {
-        uint256 totalItemCount = _tokenIds;
+        uint256 totalItemCount = _marketItemIds;
         uint256 itemCount = 0;
         uint256 currentIndex = 0;
 
         for (uint256 i = 0; i < totalItemCount; i++) {
-            if (idMarketItem[i + 1].seller == msg.sender) {  // Item was listed by the caller
+            if (idMarketItem[i].seller == msg.sender) {  // Item was listed by the caller
                 itemCount += 1;
             }
         }
 
         MarketItem[] memory items = new MarketItem[](itemCount);
         for (uint256 i = 0; i < totalItemCount; i++) {
-            if (idMarketItem[i + 1].seller == msg.sender) {
-                uint256 currentId = i + 1;
-                MarketItem storage currentItem = idMarketItem[currentId];
+            if (idMarketItem[i].seller == msg.sender) {
+                MarketItem storage currentItem = idMarketItem[i];
                 items[currentIndex] = currentItem;
                 currentIndex += 1;
             }
         }
         return items;
     }
-}
+
+} 
