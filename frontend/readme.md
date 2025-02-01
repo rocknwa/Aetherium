@@ -19,24 +19,24 @@ Welcome to the NFT Marketplace for Art and History! This platform allows you to 
 ### Installation
 
 1. Clone the repository:
-    ```sh
-    git clone https://github.com/rocknwa/Art-and-History-onChain.git
-    ```
+   ```sh
+   git clone https://github.com/rocknwa/Art-and-History-onChain.git
+   ```
 2. Navigate to the project directory:
-    ```sh
-    cd nft-marketplace
-    ```
+   ```sh
+   cd nft-marketplace
+   ```
 3. Install dependencies:
-    ```sh
-    npm install
-    ```
+   ```sh
+   npm install
+   ```
 
 ### Running the Application
 
 1. Start the development server:
-    ```sh
-    npm start
-    ```
+   ```sh
+   npm start
+   ```
 2. Open your browser and navigate to `http://localhost:3000`.
 
 ## Usage
@@ -57,5 +57,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Contact
 
 If you have any questions or feedback, please open an issue or contact us at [email@example.com](mailto:email@example.com).
+
+## Website Demo
+
+Open your browser and navigate to `https://lisk-nft-marketplace.vercel.app/`.
 
 Happy collecting!
