@@ -61,5 +61,6 @@ If you have any questions or feedback, please open an issue or contact us at [em
 ## Website Demo
 
 Open your browser and navigate to `https://lisk-nft-marketplace.vercel.app/`.
+[https://lisk-nft-marketplace.vercel.app].
 
 Happy collecting!
